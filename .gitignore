@@ -20,3 +20,5 @@ dograh_pcm_cache/
 
 # Local Docker Compose overrides (see docker-compose.override.example.yaml)
 docker-compose.override.yaml
+
+api/.venv*
