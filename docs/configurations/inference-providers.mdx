@@ -37,6 +37,8 @@ From here you can configure each service:
 
 Select a provider from the dropdown and configure the API key, model, and any provider-specific settings. For Dograh's own models, see [Service Keys](api-keys) for instructions on creating Service Keys.
 
+If you run the stack in **Docker** and want **Ollama**, **LM Studio**, or self-hosted TTS/STT on the same machine, read [Local models with Docker](local-models-docker) for `base_url` and `host.docker.internal`.
+
 ## Agent-Level Model Overrides
 
 You can override the global model configuration for any individual agent. This is useful when different agents have different requirements — for example, a customer support agent might use a faster, cheaper LLM while a sales agent uses a more capable one.

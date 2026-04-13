@@ -38,6 +38,13 @@ def check_for_masked_keys(config: "UserConfiguration") -> None:
                 f"The {field} api_key appears to be masked. "
                 "Please provide the actual API key, not the masked value."
             )
+    vault = config.provider_api_keys or {}
+    for provider, keys in vault.items():
+        if contains_masked_key(keys):
+            raise ValueError(
+                f"The provider_api_keys entry for {provider!r} appears to be masked. "
+                "Please provide the actual API key, not the masked value."
+            )
 
 
 def mask_key(real_key: str, visible: int = VISIBLE_CHARS) -> str:
@@ -98,6 +105,22 @@ def resolve_masked_api_keys(
 # ---------------------------------------------------------------------------
 
 
+def _mask_provider_api_keys(
+    vault: dict[str, str | list[str]],
+) -> dict[str, str | list[str]]:
+    if not vault:
+        return {}
+    out: dict[str, str | list[str]] = {}
+    for prov, val in vault.items():
+        if isinstance(val, list):
+            out[prov] = [mask_key(k) for k in val if k]
+        elif val:
+            out[prov] = mask_key(val)
+        else:
+            out[prov] = val
+    return out
+
+
 def _mask_service(service_cfg: Optional[ServiceConfig]) -> Optional[Dict[str, Any]]:
     if service_cfg is None:
         return None
@@ -125,6 +148,7 @@ def mask_user_config(config: UserConfiguration) -> Dict[str, Any]:
         "is_realtime": config.is_realtime,
         "test_phone_number": config.test_phone_number,
         "timezone": config.timezone,
+        "provider_api_keys": _mask_provider_api_keys(config.provider_api_keys or {}),
     }
 
 

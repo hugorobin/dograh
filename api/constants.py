@@ -33,6 +33,10 @@ AUTH_PROVIDER = os.getenv("AUTH_PROVIDER", "local")
 DOGRAH_MPS_SECRET_KEY = os.getenv("DOGRAH_MPS_SECRET_KEY", None)
 MPS_API_URL = os.getenv("MPS_API_URL", "https://services.dograh.com")
 
+# HMAC signing secret for outbound lifecycle webhooks (call_started / call_ended).
+# If unset, lifecycle webhooks to workflow `outbound_webhook_url` are skipped.
+DOGRAH_WEBHOOK_SECRET = os.getenv("DOGRAH_WEBHOOK_SECRET", "") or ""
+
 # Storage Configuration
 ENABLE_AWS_S3 = os.getenv("ENABLE_AWS_S3", "false").lower() == "true"
 

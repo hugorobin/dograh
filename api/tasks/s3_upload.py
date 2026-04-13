@@ -6,6 +6,7 @@ from loguru import logger
 from api.db import db_client
 from api.services.pricing.workflow_run_cost import calculate_workflow_run_cost
 from api.services.storage import get_current_storage_backend, storage_fs
+from api.tasks.lifecycle_webhooks import send_lifecycle_webhook
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from pipecat.utils.run_context import set_current_run_id
 
@@ -168,6 +169,14 @@ async def process_workflow_completion(
         await run_integrations_post_workflow_run(_ctx, workflow_run_id)
     except Exception as e:
         logger.error(f"Error running integrations for workflow {workflow_run_id}: {e}")
+
+    # Step 3b: Outbound lifecycle webhook (call_ended), same worker as completion pipeline
+    try:
+        await send_lifecycle_webhook(workflow_run_id, "call_ended")
+    except Exception as e:
+        logger.warning(
+            f"call_ended lifecycle webhook failed for workflow run {workflow_run_id}: {e}"
+        )
 
     # Step 4: Calculate cost after integrations (so QA token usage is included)
     try:

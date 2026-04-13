@@ -4,7 +4,7 @@ from __future__ import annotations
 stored, while honouring masked API keys.
 """
 
-from typing import Dict
+from typing import Any, Dict
 
 from api.schemas.user_configuration import UserConfiguration
 from api.services.configuration.masking import resolve_masked_api_keys
@@ -13,7 +13,7 @@ SERVICE_FIELDS = ("llm", "tts", "stt", "embeddings", "realtime")
 
 
 def merge_user_configurations(
-    existing: UserConfiguration, incoming_partial: Dict[str, dict]
+    existing: UserConfiguration, incoming_partial: Dict[str, Any]
 ) -> UserConfiguration:
     """Merge *incoming_partial* onto *existing* and return a new UserConfiguration.
 
@@ -72,5 +72,21 @@ def merge_user_configurations(
 
     if "timezone" in incoming_partial:
         merged["timezone"] = incoming_partial["timezone"]
+
+    if "provider_api_keys" in incoming_partial:
+        incoming_vault = incoming_partial["provider_api_keys"]
+        if isinstance(incoming_vault, dict):
+            old_vault: dict[str, Any] = dict(merged.get("provider_api_keys") or {})
+            new_vault = dict(old_vault)
+            for prov, inc_val in incoming_vault.items():
+                if inc_val is None:
+                    new_vault.pop(prov, None)
+                    continue
+                old_val = old_vault.get(prov)
+                if old_val is not None:
+                    new_vault[prov] = resolve_masked_api_keys(inc_val, old_val)
+                else:
+                    new_vault[prov] = inc_val
+            merged["provider_api_keys"] = new_vault
 
     return UserConfiguration.model_validate(merged)

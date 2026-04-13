@@ -22,6 +22,11 @@ import logger from '@/lib/logger';
 import { getNextNodeId, getRandomId } from "@/lib/utils";
 import { DEFAULT_WORKFLOW_CONFIGURATIONS, WorkflowConfigurations } from "@/types/workflow-configurations";
 
+export type SaveWorkflowExtras = {
+    /** Merged over current store configurations (dictionary preserved). */
+    workflowConfigurations?: WorkflowConfigurations;
+};
+
 const DEFAULT_QA_SYSTEM_PROMPT = `You are a QA analyst evaluating a specific segment of a voice AI conversation.
 
 ## Node Purpose
@@ -166,6 +171,13 @@ interface UseWorkflowStateProps {
     initialTemplateContextVariables?: Record<string, string>;
     initialWorkflowConfigurations?: WorkflowConfigurations;
     user: { id: string; email?: string } | null;
+    /**
+     * When non-null, saveWorkflow delegates to this promise (e.g. single/multi editors).
+     * Return null to use the default graph save path.
+     */
+    interceptSave?: () => Promise<
+        { versionNumber?: number; versionStatus?: string } | undefined
+    > | null;
 }
 
 export const useWorkflowState = ({
@@ -175,6 +187,7 @@ export const useWorkflowState = ({
     initialTemplateContextVariables,
     initialWorkflowConfigurations,
     user,
+    interceptSave,
 }: UseWorkflowStateProps) => {
     const router = useRouter();
     const rfInstance = useRef<ReactFlowInstance<FlowNode, FlowEdge> | null>(null);
@@ -360,26 +373,40 @@ export const useWorkflowState = ({
         }
     }, [workflowId, user, clearValidationErrors, markNodeAsInvalid, markEdgeAsInvalid, setWorkflowValidationErrors]);
 
-    // Save workflow function. Returns version info from the API response.
-    const saveWorkflow = useCallback(async (updateWorkflowDefinition: boolean = true): Promise<{ versionNumber?: number; versionStatus?: string } | undefined> => {
-        if (!user?.id || !rfInstance.current) return;
-        // Read nodes/edges from the Zustand store (synchronously up-to-date)
-        // and viewport from the ReactFlow instance to build the flow object.
-        // This avoids a race condition where rfInstance.toObject() may return
-        // stale node data if React hasn't re-rendered yet after a store update.
-        const { nodes: currentNodes, edges: currentEdges } = useWorkflowStore.getState();
-        const viewport = rfInstance.current.getViewport();
+    // Direct PUT for workflow definition / configs (no intercept). Used by single/multi editors.
+    const saveWorkflowCore = useCallback(async (
+        updateWorkflowDefinition: boolean = true,
+        extras?: SaveWorkflowExtras,
+    ): Promise<{ versionNumber?: number; versionStatus?: string } | undefined> => {
+        if (!user?.id) return;
+        const { nodes: currentNodes, edges: currentEdges, workflowConfigurations: storeWc, dictionary: storeDict } = useWorkflowStore.getState();
+        const viewport = rfInstance.current?.getViewport() ?? { x: 0, y: 0, zoom: 0.75 };
         const flow = { nodes: currentNodes, edges: currentEdges, viewport };
         let result: { versionNumber?: number; versionStatus?: string } | undefined;
+
+        const baseWc = storeWc ?? DEFAULT_WORKFLOW_CONFIGURATIONS;
+        const body: {
+            name: string;
+            workflow_definition: typeof flow | null;
+            workflow_configurations?: Record<string, unknown>;
+        } = {
+            name: workflowName,
+            workflow_definition: updateWorkflowDefinition ? flow : null,
+        };
+        if (extras?.workflowConfigurations) {
+            body.workflow_configurations = {
+                ...baseWc,
+                ...extras.workflowConfigurations,
+                dictionary: extras.workflowConfigurations.dictionary ?? storeDict ?? baseWc.dictionary,
+            } as Record<string, unknown>;
+        }
+
         try {
             const response = await updateWorkflowApiV1WorkflowWorkflowIdPut({
                 path: {
                     workflow_id: workflowId,
                 },
-                body: {
-                    name: workflowName,
-                    workflow_definition: updateWorkflowDefinition ? flow : null,
-                },
+                body,
             });
             setIsDirty(false);
             if (response.data) {
@@ -388,6 +415,9 @@ export const useWorkflowState = ({
                     versionStatus: response.data.version_status ?? undefined,
                 };
             }
+            if (extras?.workflowConfigurations && body.workflow_configurations) {
+                setWorkflowConfigurations(body.workflow_configurations as WorkflowConfigurations);
+            }
         } catch (error) {
             logger.error(`Error saving workflow: ${error}`);
         }
@@ -395,7 +425,21 @@ export const useWorkflowState = ({
         // Validate after saving
         await validateWorkflow();
         return result;
-    }, [workflowId, workflowName, setIsDirty, user, validateWorkflow]);
+    }, [workflowId, workflowName, setIsDirty, setWorkflowConfigurations, user, validateWorkflow]);
+
+    // Save workflow function. When an interceptSave is registered (single/multi-prompt
+    // authoring modes), it delegates to the active editor's saveAll(). Otherwise falls
+    // back to the graph save path. Callers that need SaveWorkflowExtras should use
+    // saveWorkflowCore directly.
+    const saveWorkflow = useCallback(async (
+        updateWorkflowDefinition: boolean = true,
+    ): Promise<{ versionNumber?: number; versionStatus?: string } | undefined> => {
+        const delegated = interceptSave?.();
+        if (delegated != null) {
+            return await delegated;
+        }
+        return saveWorkflowCore(updateWorkflowDefinition);
+    }, [interceptSave, saveWorkflowCore]);
 
     // Set up keyboard shortcut for save (Cmd/Ctrl + S)
     useEffect(() => {
@@ -582,6 +626,7 @@ export const useWorkflowState = ({
         handleNodeSelect,
         handleNameChange,
         saveWorkflow,
+        saveWorkflowCore,
         onConnect,
         onEdgesChange,
         onNodesChange,

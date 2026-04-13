@@ -1,0 +1,26 @@
+# Copy to docker-compose.override.yaml (gitignored) and adjust as needed.
+# Compose merges this file automatically with docker-compose.yaml.
+#
+#   cp docker-compose.override.example.yaml docker-compose.override.yaml
+#
+# See DEPLOY_GUIDE.md for project name, submodule, and troubleshooting.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    image: dograh-local-api:dev
+
+  ui:
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    image: dograh-local-ui:dev
+
+  # Optional: if host port 5432 is already taken, stop using the default publish
+  # from docker-compose.yaml (e.g. comment out postgres.ports there) and use only:
+  # postgres:
+  #   ports:
+  #     - "5433:5432"
+  # DATABASE_URL must remain @postgres:5432 (container port).

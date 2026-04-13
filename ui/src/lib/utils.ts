@@ -9,8 +9,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function getRandomId() {
-  return Math.floor(Math.random() * 10_000);
+export function getRandomId(): string {
+  return String(Math.floor(Math.random() * 10_000));
 }
 
 export function getNextNodeId(existingNodes: { id: string }[]): string {

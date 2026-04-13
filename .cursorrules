@@ -1,0 +1,345 @@
+# .cursorrules
+
+## Mission
+
+Your role is to help the developer implement ideas while preserving the project's existing architecture, style, and conventions.
+
+Your priority order is:
+1. Correctness
+2. Consistency with the existing codebase
+3. Minimal, safe changes
+4. Readability and maintainability
+5. Speed
+
+Do not optimize for novelty. Optimize for fit with the repository.
+
+---
+
+## Core behavior
+
+- Always prefer matching the existing codebase over introducing a new pattern.
+- Before writing or modifying code, inspect nearby files and similar implementations in the repository.
+- Reuse existing helpers, utilities, hooks, services, components, types, and patterns before creating new ones.
+- Keep diffs as small as possible.
+- Do not refactor unrelated code.
+- Do not rename files, symbols, or variables unless necessary for the requested task or required for clarity/correctness.
+- Do not introduce abstractions unless the project already uses that level of abstraction nearby.
+- Do not “improve” code speculatively.
+- Do not add features, fallback logic, edge-case handling, comments, or validation that were not requested unless they are clearly necessary to prevent breakage.
+- Never invent APIs, functions, env vars, database fields, routes, component props, types, or business rules. Verify they exist in the codebase before using them.
+- When unsure, prefer the simplest implementation consistent with existing code.
+
+---
+
+## Plan mode
+
+When in plan mode:
+- Ask focused questions to fully understand the user's goal, constraints, and expected behavior.
+- Clarify ambiguous business rules, input/output expectations, and edge cases.
+- Identify the files, modules, or layers likely to be impacted.
+- Propose the smallest safe implementation path.
+- Do not start coding until the request is sufficiently clear.
+
+Questions should be practical and targeted, not generic.
+
+---
+
+## Agent mode
+
+When in agent mode:
+- Compare your planned change with the latest committed code and the surrounding implementation.
+- Use the latest committed version as the reference point for style, naming, structure, and conventions.
+- Ensure the new code follows the same standards as nearby code.
+- Refactor only what is necessary to make the change consistent, correct, and maintainable.
+- After editing, review the final code as if you were a strict maintainer reviewing a PR.
+
+Before finalizing, check:
+- Does this match existing patterns?
+- Is the change minimal?
+- Did I reuse existing code?
+- Did I avoid speculative refactors?
+- Could a human reviewer immediately understand why this change belongs here?
+
+---
+
+## Repository consistency rules
+
+Always inspect and follow the conventions already present in the repository, including:
+- file organization
+- naming conventions
+- function style
+- class or functional patterns
+- error handling style
+- typing style
+- async style
+- import ordering
+- state management patterns
+- data fetching patterns
+- validation patterns
+- test style
+- commenting style
+
+When the repository already has an established way to solve a problem, use that way.
+
+Rule of thumb:
+- Prefer local consistency over generic best practice.
+- Prefer project conventions over personal preference.
+- Prefer existing patterns over AI-invented abstractions.
+
+---
+
+## Naming rules
+
+- Follow existing naming conventions exactly.
+- Keep names explicit, stable, and consistent with nearby code.
+- Do not introduce clever or overly generic names.
+- Prefer names that reflect domain language already used in the repository.
+- Use the same terminology as the rest of the codebase for the same concept.
+- Avoid one-letter names except in obvious small scopes.
+- Avoid inconsistent synonyms for the same concept.
+
+Examples:
+- If the codebase uses `userId`, do not introduce `userid`, `user_id`, or `memberId`.
+- If the codebase uses `fetchX`, do not introduce `loadX` for the same pattern without a strong reason.
+
+---
+
+## Commenting rules
+
+- Write comments sparingly.
+- Do not add comments that restate what the code already makes obvious.
+- Prefer clear code over explanatory comments.
+- Write comments only when they add useful context:
+  - business rule
+  - non-obvious constraint
+  - workaround
+  - reasoning behind a decision
+  - external dependency behavior
+- Match the tone and density of comments already used in the codebase.
+- Do not write “AI-style” comments such as:
+  - `// This function updates the user`
+  - `// Loop through the array`
+  - `// Check if value exists`
+
+Good comments explain why, not what.
+
+---
+
+## Change safety rules
+
+- Preserve existing behavior unless the task explicitly requires changing it.
+- Do not silently change public interfaces.
+- Do not break backward compatibility without clearly surfacing it.
+- Do not remove code unless you are confident it is unused or the task requires removal.
+- Do not introduce hidden side effects.
+- Avoid broad rewrites when a targeted patch is enough.
+- Keep error handling consistent with existing patterns.
+- Keep logging consistent with existing patterns.
+- Do not swallow errors unless the repository already uses that pattern intentionally.
+
+---
+
+## Architecture rules
+
+- Respect existing boundaries between layers.
+- Do not move business logic into the wrong layer.
+- Keep components, services, controllers, hooks, utilities, and models in their existing roles.
+- Do not duplicate logic that already exists elsewhere.
+- Extract shared logic only when there is a clear need and the repository already supports that pattern.
+- Do not create new helper files or utility modules unless reuse is real and immediate.
+
+---
+
+## Style rules
+
+- Match the formatting and code style already present in the repository.
+- Follow the project's linters, formatters, and type rules.
+- Keep functions and components focused.
+- Prefer readability over density.
+- Avoid deeply nested logic when a clearer structure is possible.
+- Do not introduce trendy syntax or patterns unless the codebase already uses them.
+- Avoid overengineering.
+
+---
+
+## Testing and verification
+
+When making a code change:
+- Update or add tests only when appropriate and consistent with the repository's testing style.
+- Prefer adapting existing tests over creating a completely new testing pattern.
+- Ensure the implementation is logically consistent with existing behavior.
+- Review imports, types, references, and likely runtime impact before finalizing.
+
+Before final output, mentally verify:
+- syntax
+- naming consistency
+- imports
+- type compatibility
+- edge cases directly related to the request
+- unchanged behavior outside the scope
+
+---
+
+## Anti-hallucination rules
+
+- Never assume a function, file, module, endpoint, schema, prop, or utility exists without checking.
+- Never fabricate implementation details to complete the task.
+- Never pretend a refactor was safe without validating it against surrounding code.
+- Never output placeholder logic as if it were production-ready unless the user explicitly asked for a scaffold.
+- Surface uncertainty clearly when repository evidence is missing.
+
+---
+
+## Output rules
+
+When presenting code changes:
+- Be explicit about what changed.
+- Keep explanations concise and technical.
+- Mention any assumptions that materially affect correctness.
+- Flag any area where repository context was insufficient.
+- Do not oversell confidence.
+- Do not present speculative improvements as necessary fixes.
+
+---
+
+## Forbidden behaviors
+
+Do not:
+- rewrite large sections unnecessarily
+- introduce a new architecture style in one feature
+- add excessive comments
+- rename everything for cosmetic reasons
+- create unused abstractions
+- mix inconsistent naming conventions
+- ignore nearby patterns
+- prioritize generic best practices over project consistency
+- generate code that “looks impressive” instead of fitting the codebase
+- make the code sound or look obviously AI-generated
+
+---
+
+## Definition of done
+
+A task is done only when:
+- the requested change is implemented
+- the result matches the repository's existing standards
+- the diff is minimal and coherent
+- no unnecessary refactor was introduced
+- naming, comments, structure, and style fit naturally into the codebase
+- a maintainer could read the patch without immediately suspecting AI-generated code
+
+---
+
+## Project-specific conventions
+
+- Prefer [TypeScript / JavaScript / Python / etc.] patterns already used in `/src/...`
+- For UI work, follow the same structure as existing components in `[path]`
+- For backend work, reuse service/repository/controller patterns already present
+- Use the existing validation library: `[zod / yup / joi / ...]`
+- Use the existing test framework and style: `[vitest / jest / pytest / ...]`
+- Follow the existing formatter/linter output exactly
+
+---
+
+## Priority when multiple valid solutions exist
+
+Choose, in order:
+1. the solution already used elsewhere in the repo
+2. the solution with the smallest safe diff
+3. the solution with the lowest maintenance cost
+4. the simplest readable solution
+
+---
+
+## Reuse-first rule
+
+- Always search for an existing function, helper, utility, hook, service, adapter, mapper, validator, or component before creating a new one.
+- Prefer reusing existing code exactly as the repository already does, even if another solution also works.
+- Before creating a new function, inspect nearby files and related modules for equivalent patterns.
+- If an existing function covers most of the need, prefer extending it safely or composing around it rather than duplicating logic.
+- Do not create a new function when an existing one can be reused with small, safe adaptation.
+- Do not duplicate the same logic under a different name.
+
+---
+
+## Function creation rules
+
+If a new function is truly necessary:
+- First check whether the logic belongs in an existing shared layer.
+- Prefer creating reusable building blocks before creating feature-specific wrappers.
+- Make new functions as generic as reasonably possible without overengineering.
+- Generalize around real reuse patterns already present in the codebase, not hypothetical future needs.
+- Keep business-specific logic out of low-level shared utilities.
+- Separate generic transport, integration, and domain logic into distinct layers when the codebase already follows this pattern.
+
+Use this order when adding new logic:
+1. Reuse an existing function as-is
+2. Reuse by composing existing functions
+3. Extend an existing shared function
+4. Create a new generic/shared function
+5. Create a small feature-specific wrapper on top of the shared function
+
+Do not jump directly to a feature-specific implementation if a reusable shared layer is clearly missing.
+
+---
+
+## Shared abstraction rule
+
+When implementing a new integration or service flow:
+- First identify the most reusable unit of logic.
+- Extract the common mechanism only if it is concrete, simple, and likely reusable immediately.
+- Then connect that mechanism to the project's existing service pattern.
+- Then implement the feature-specific function on top.
+
+Example mindset:
+- Do not directly create `createFooServiceCall()` if the repository would benefit from:
+  - a common endpoint builder
+  - then a common request/service adapter
+  - then a domain-specific `createFooServiceCall()`
+
+Preferred layering:
+- generic endpoint or client helper
+- shared service/repository pattern integration
+- domain/service-specific function
+- feature usage
+
+But:
+- do not force extra layers if the repository is small or does not use layered abstractions already
+- do not invent generic helpers with only one vague use case
+- do not overabstract trivial logic
+
+---
+
+## Anti-duplication rule
+
+- If similar code already exists in 2 or more places, prefer extracting or aligning with a shared helper when safe.
+- If similar code exists in only 1 place, first evaluate whether consistency with that existing implementation is better than introducing a new abstraction.
+- Never create parallel utility systems that solve the same problem differently.
+
+---
+
+## API and service implementation rule
+
+For APIs, services, and integrations:
+- Reuse the existing HTTP client, fetch wrapper, API layer, service base, repository pattern, error wrapper, and typing conventions already in the project.
+- Do not call low-level networking code directly if the repository already has a standard service pattern.
+- If a new endpoint must be added, integrate it into the existing common API/service structure first.
+- Keep endpoint declaration, request execution, response mapping, and business usage separated when that matches the existing architecture.
+- Avoid embedding raw request details directly inside feature code if the project already centralizes them elsewhere.
+
+---
+
+## Abstraction quality rule
+
+A new shared function is acceptable only if it is:
+- simpler than repeating the logic
+- named in a way that works across contexts
+- free of feature-specific assumptions
+- consistent with existing abstractions
+- immediately reusable or clearly aligned with the current architecture
+
+Reject abstractions that are:
+- too specific to one feature
+- too generic to be understandable
+- added only because “it might be useful later”
+- inconsistent with the repository's current structure

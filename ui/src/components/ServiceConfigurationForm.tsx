@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { getDefaultConfigurationsApiV1UserConfigurationsDefaultsGet } from '@/client/sdk.gen';
@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VoiceSelector } from "@/components/VoiceSelector";
 import { LANGUAGE_DISPLAY_NAMES } from "@/constants/languages";
 import { useUserConfig } from "@/context/UserConfigContext";
+import type { UserConfigurationRequestResponseSchema } from "@/client/types.gen";
 import type { ModelOverrides } from "@/types/workflow-configurations";
 
 type ServiceSegment = "llm" | "tts" | "stt" | "embeddings" | "realtime";
@@ -76,6 +77,26 @@ const VOICE_DISPLAY_NAMES: Record<string, string> = {
     "hitesh": "Hitesh (Male)",
 };
 
+function collectAllProviderIds(
+    sch: Record<ServiceSegment, Record<string, ProviderSchema>>,
+): string[] {
+    const ids = new Set<string>();
+    (["llm", "tts", "stt", "embeddings", "realtime"] as ServiceSegment[]).forEach((seg) => {
+        Object.keys(sch[seg] || {}).forEach((p) => ids.add(p));
+    });
+    return [...ids].sort();
+}
+
+function providerRequiresApiKeyForService(
+    service: ServiceSegment,
+    provider: string,
+    sch: Record<ServiceSegment, Record<string, ProviderSchema>>,
+): boolean {
+    const schema = sch[service]?.[provider];
+    if (!schema?.properties?.api_key) return false;
+    return schema.required?.includes("api_key") ?? false;
+}
+
 export interface ServiceConfigurationFormProps {
     mode: 'global' | 'override';
     currentOverrides?: ModelOverrides;
@@ -101,7 +122,16 @@ export function ServiceConfigurationForm({
     const [apiError, setApiError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isRealtime, setIsRealtime] = useState(false);
-    const { userConfig } = useUserConfig();
+    const { userConfig, saveUserConfig } = useUserConfig();
+    const [vaultKeys, setVaultKeys] = useState<Record<string, string[]>>({});
+    const [vaultLoaded, setVaultLoaded] = useState(false);
+    const [providerFilterOnlyWithKeys, setProviderFilterOnlyWithKeys] = useState(false);
+    const initialVaultHadKeyRef = useRef<Record<string, boolean>>({});
+    const vaultKeysRef = useRef<Record<string, string[]>>({});
+
+    useEffect(() => {
+        vaultKeysRef.current = vaultKeys;
+    }, [vaultKeys]);
     const [schemas, setSchemas] = useState<Record<ServiceSegment, Record<string, ProviderSchema>>>({
         llm: {},
         tts: {},
@@ -174,13 +204,15 @@ export function ServiceConfigurationForm({
             const data = response.data as Record<string, unknown>;
             const realtimeSchemas = (data.realtime || {}) as Record<string, ProviderSchema>;
 
-            setSchemas({
+            const loadedSchemas: Record<ServiceSegment, Record<string, ProviderSchema>> = {
                 llm: response.data.llm as Record<string, ProviderSchema>,
                 tts: response.data.tts as Record<string, ProviderSchema>,
                 stt: response.data.stt as Record<string, ProviderSchema>,
                 embeddings: response.data.embeddings as Record<string, ProviderSchema>,
                 realtime: realtimeSchemas,
-            });
+            };
+
+            setSchemas(loadedSchemas);
 
             // Restore realtime toggle
             const configData = configSource as Record<string, unknown> | null;
@@ -274,12 +306,64 @@ export function ServiceConfigurationForm({
             setServicePropertyValues("embeddings");
             setServicePropertyValues("realtime");
 
+            // Build vault map from saved provider_api_keys + all schema provider ids
+            const rawVault = configData?.provider_api_keys as Record<string, unknown> | undefined;
+            const allProviderIds = new Set<string>();
+            (["llm", "tts", "stt", "embeddings", "realtime"] as ServiceSegment[]).forEach((seg) => {
+                Object.keys(loadedSchemas[seg] || {}).forEach((p) => allProviderIds.add(p));
+            });
+            if (rawVault && typeof rawVault === "object") {
+                Object.keys(rawVault).forEach((k) => allProviderIds.add(k));
+            }
+            const sortedVaultProviderIds = [...allProviderIds].sort();
+            const vaultMap: Record<string, string[]> = {};
+            for (const p of sortedVaultProviderIds) {
+                vaultMap[p] = [""];
+            }
+            if (rawVault && typeof rawVault === "object") {
+                for (const [k, v] of Object.entries(rawVault)) {
+                    if (typeof v === "string") {
+                        vaultMap[k] = v.trim() ? [v] : [""];
+                    } else if (Array.isArray(v)) {
+                        const nonempty = v.filter((x) => String(x).trim());
+                        vaultMap[k] = nonempty.length ? nonempty.map(String) : [""];
+                    }
+                    if (vaultMap[k] === undefined) vaultMap[k] = [""];
+                }
+            }
+            // Seed vault from per-service keys already in config; auto-fill per-service tabs from vault
+            const vaultServiceSegments: ServiceSegment[] = ["llm", "tts", "stt", "embeddings", "realtime"];
+            for (const svc of vaultServiceSegments) {
+                const prov = selectedProviders[svc];
+                const keys = loadedApiKeys[svc].map((x) => x.trim()).filter(Boolean);
+                if (!prov || !keys.length) continue;
+                const cur = (vaultMap[prov] || [""]).map((x) => x.trim()).filter(Boolean);
+                if (!cur.length) vaultMap[prov] = [...keys];
+            }
+            for (const svc of vaultServiceSegments) {
+                const prov = selectedProviders[svc];
+                if (!prov) continue;
+                if (loadedApiKeys[svc].some((x) => x.trim())) continue;
+                const vk = (vaultMap[prov] || []).map((x) => x.trim()).filter(Boolean);
+                if (vk.length) loadedApiKeys[svc] = [...vk];
+            }
+            const hadKey: Record<string, boolean> = {};
+            for (const p of sortedVaultProviderIds) {
+                const inVault = (vaultMap[p] || []).some((x) => x.trim());
+                const inSvc = vaultServiceSegments.some(
+                    (svc) => selectedProviders[svc] === p && loadedApiKeys[svc].some((x) => x.trim()),
+                );
+                hadKey[p] = inVault || inSvc;
+            }
+            initialVaultHadKeyRef.current = hadKey;
+            setVaultKeys(vaultMap);
+            setVaultLoaded(true);
+
             // Detect custom inputs
             const detectedCustomInput: Record<string, boolean> = {};
-            const allSchemas = { ...response.data, realtime: realtimeSchemas } as unknown as Record<string, Record<string, ProviderSchema>>;
             (["llm", "tts", "stt", "embeddings", "realtime"] as ServiceSegment[]).forEach(service => {
                 const provider = selectedProviders[service];
-                const providerSchema = allSchemas[service]?.[provider];
+                const providerSchema = loadedSchemas[service]?.[provider];
                 if (!providerSchema) return;
 
                 const src = service === "realtime"
@@ -371,7 +455,13 @@ export function ServiceConfigurationForm({
         preservedValues[`${service}_provider`] = providerName;
         reset(preservedValues);
         setServiceProviders(prev => ({ ...prev, [service]: providerName }));
-        setApiKeys(prev => ({ ...prev, [service]: [""] }));
+        const fromVault = (vaultKeysRef.current[providerName] || [])
+            .map((k) => k.trim())
+            .filter(Boolean);
+        setApiKeys((prev) => ({
+            ...prev,
+            [service]: fromVault.length ? [...fromVault] : [""],
+        }));
 
         setIsCustomInput(prev => {
             const next = { ...prev };
@@ -382,11 +472,52 @@ export function ServiceConfigurationForm({
         });
     };
 
+    const resolveApiKeysForService = (service: ServiceSegment): string[] => {
+        const tab = apiKeys[service].map((k) => k.trim()).filter((k) => k.length > 0);
+        if (tab.length) return tab;
+        const prov = serviceProviders[service];
+        if (!prov) return [];
+        return (vaultKeys[prov] || []).map((k) => k.trim()).filter((k) => k.length > 0);
+    };
+
+    const buildVaultPayload = (): Record<string, string | string[] | null> => {
+        // Union of schema providers + keys the user has explicitly entered
+        const allIds = new Set([
+            ...collectAllProviderIds(schemas),
+            ...Object.keys(vaultKeys),
+        ]);
+        const acc: Record<string, string[]> = {};
+        for (const p of allIds) {
+            const trimmed = (vaultKeys[p] || []).map((k) => k.trim()).filter(Boolean);
+            if (trimmed.length) acc[p] = trimmed;
+        }
+        const svcList: ServiceSegment[] =
+            mode === "override"
+                ? (isRealtime ? (["realtime"] as ServiceSegment[]) : (["llm", "tts", "stt"] as ServiceSegment[])).filter((s) => enabledOverrides[s])
+                : (["llm", "tts", "stt", "embeddings", "realtime"] as ServiceSegment[]);
+        for (const svc of svcList) {
+            const prov = serviceProviders[svc];
+            if (!prov) continue;
+            const t = apiKeys[svc].map((k) => k.trim()).filter(Boolean);
+            if (t.length) acc[prov] = t;
+        }
+        const out: Record<string, string | string[] | null> = {};
+        for (const p of allIds) {
+            const ks = acc[p] || [];
+            if (ks.length > 0) {
+                out[p] = ks.length === 1 ? ks[0] : ks;
+            } else if (initialVaultHadKeyRef.current[p]) {
+                out[p] = null;
+            }
+        }
+        return out;
+    };
+
     const buildServiceConfig = (service: ServiceSegment, data: FormValues) => {
         const config: Record<string, string | number | string[]> = {
             provider: serviceProviders[service],
         };
-        const keys = apiKeys[service].map(k => k.trim()).filter(k => k.length > 0);
+        const keys = resolveApiKeysForService(service);
         if (keys.length > 0) {
             config.api_key = mode === 'override' ? keys[0] : keys;
         }
@@ -405,6 +536,14 @@ export function ServiceConfigurationForm({
 
         try {
             if (mode === 'override') {
+                if (userConfig == null) {
+                    setApiError("Configuration is still loading. Please wait and try again.");
+                    setIsSaving(false);
+                    return;
+                }
+                await saveUserConfig({
+                    provider_api_keys: buildVaultPayload(),
+                } as UserConfigurationRequestResponseSchema);
                 // Build model_overrides for enabled services only
                 const modelOverrides: Record<string, unknown> = {};
                 const services = isRealtime ? ["realtime"] : ["llm", "tts", "stt"];
@@ -428,11 +567,12 @@ export function ServiceConfigurationForm({
                     tts: buildServiceConfig("tts", data),
                     stt: buildServiceConfig("stt", data),
                     is_realtime: isRealtime,
+                    provider_api_keys: buildVaultPayload(),
                 };
                 if (serviceProviders.realtime) {
                     saveConfig.realtime = buildServiceConfig("realtime", data);
                 }
-                const embeddingsKeys = apiKeys.embeddings.map(k => k.trim()).filter(k => k.length > 0);
+                const embeddingsKeys = resolveApiKeysForService("embeddings");
                 if (embeddingsKeys.length > 0) {
                     saveConfig.embeddings = buildServiceConfig("embeddings", data);
                 }
@@ -463,6 +603,15 @@ export function ServiceConfigurationForm({
         const currentProvider = serviceProviders[service];
         const providerSchema = schemas?.[service]?.[currentProvider];
         const availableProviders = schemas?.[service] ? Object.keys(schemas[service]) : [];
+        const filteredProviders = availableProviders.filter((p) => {
+            if (!providerFilterOnlyWithKeys) return true;
+            if (!providerRequiresApiKeyForService(service, p, schemas)) return true;
+            return (vaultKeys[p] || []).some((k) => k.trim());
+        });
+        const providersForSelect =
+            currentProvider && !filteredProviders.includes(currentProvider)
+                ? [...filteredProviders, currentProvider].sort()
+                : filteredProviders;
         const configFields = getConfigFields(service);
 
         return (
@@ -480,7 +629,7 @@ export function ServiceConfigurationForm({
                                 <SelectValue placeholder="Select provider" />
                             </SelectTrigger>
                             <SelectContent>
-                                {availableProviders.map((provider) => (
+                                {providersForSelect.map((provider) => (
                                     <SelectItem key={provider} value={provider}>
                                         {provider}
                                     </SelectItem>
@@ -751,6 +900,85 @@ export function ServiceConfigurationForm({
 
     return (
         <form onSubmit={handleSubmit(onSubmit)}>
+            <Card className="mb-4">
+                <CardContent className="space-y-4 pt-6">
+                    <div>
+                        <h3 className="text-sm font-medium">Saved provider keys</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            One key set per provider applies to every tab that uses that provider. Per-tab keys override the vault when set.
+                        </p>
+                    </div>
+                    <div className="flex items-start space-x-2">
+                        <Checkbox
+                            id="provider-filter-saved-keys"
+                            checked={providerFilterOnlyWithKeys}
+                            onCheckedChange={(c) => setProviderFilterOnlyWithKeys(!!c)}
+                        />
+                        <Label htmlFor="provider-filter-saved-keys" className="cursor-pointer text-sm font-normal leading-snug">
+                            When choosing a provider below, only show providers that have a saved key here (providers with optional API keys stay visible)
+                        </Label>
+                    </div>
+                    <div className="max-h-64 space-y-4 overflow-y-auto rounded-md border p-3 pr-2">
+                        {!vaultLoaded && (
+                            <p className="text-xs text-muted-foreground">Loading providers…</p>
+                        )}
+                        {vaultLoaded && Object.keys(vaultKeys).length === 0 && (
+                            <p className="text-xs text-muted-foreground">No providers found.</p>
+                        )}
+                        {Object.keys(vaultKeys)
+                            .sort()
+                            .map((prov) => (
+                                <div key={prov} className="space-y-2">
+                                    <Label className="font-mono text-xs">{prov}</Label>
+                                    {(vaultKeys[prov] || [""]).map((keyVal, index) => (
+                                        <div key={index} className="flex gap-2">
+                                            <Input
+                                                type="text"
+                                                placeholder="API key"
+                                                value={keyVal}
+                                                onChange={(e) => {
+                                                    const next = [...(vaultKeys[prov] || [""])];
+                                                    next[index] = e.target.value;
+                                                    setVaultKeys((vk) => ({ ...vk, [prov]: next }));
+                                                }}
+                                            />
+                                            {(vaultKeys[prov] || []).length > 1 && (
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="shrink-0"
+                                                    onClick={() => {
+                                                        setVaultKeys((vk) => ({
+                                                            ...vk,
+                                                            [prov]: (vk[prov] || []).filter((_, i) => i !== index),
+                                                        }));
+                                                    }}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            setVaultKeys((vk) => ({
+                                                ...vk,
+                                                [prov]: [...(vk[prov] || [""]), ""],
+                                            }));
+                                        }}
+                                    >
+                                        <Plus className="mr-1 h-4 w-4" /> Add key
+                                    </Button>
+                                </div>
+                            ))}
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* Realtime toggle */}
             <div className="flex items-center justify-between mb-4 p-4 border rounded-lg">
                 <div>

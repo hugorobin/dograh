@@ -8,6 +8,7 @@ import {
   CircleDollarSign,
   Database,
   FileText,
+  Hash,
   Home,
   Key,
   LogOut,
@@ -124,6 +125,11 @@ export function AppSidebar() {
           title: "Telephony",
           url: "/telephony-configurations",
           icon: Phone,
+        },
+        {
+          title: "Phone Numbers",
+          url: "/phone-numbers",
+          icon: Hash,
         },
         {
           title: "Tools",

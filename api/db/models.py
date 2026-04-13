@@ -308,6 +308,40 @@ class WorkflowModel(Base):
         return None
 
 
+class PhoneNumberModel(Base):
+    """Per-DID configuration: associates a phone number with an inbound workflow and optional pre-connect webhook."""
+
+    __tablename__ = "phone_numbers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(
+        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    organization = relationship("OrganizationModel")
+    e164 = Column(String, nullable=False)
+    name = Column(String, nullable=True)
+    workflow_id = Column(Integer, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True)
+    workflow = relationship("WorkflowModel")
+    inbound_webhook_url = Column(String, nullable=True)
+    # SIP trunking fields
+    termination_uri = Column(String, nullable=True)
+    sip_username = Column(String, nullable=True)
+    sip_password = Column(String, nullable=True)
+    outbound_transport = Column(String, nullable=True, default="TCP")
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "e164", name="_org_e164_uc"),
+        Index("ix_phone_numbers_organization_id", "organization_id"),
+        Index("ix_phone_numbers_e164", "e164"),
+    )
+
+
 class WorkflowTemplates(Base):
     __tablename__ = "workflow_templates"
     id = Column(Integer, primary_key=True, index=True)

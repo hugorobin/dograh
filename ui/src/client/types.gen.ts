@@ -959,6 +959,12 @@ export type CreateWorkflowRequest = {
     workflow_definition: {
         [key: string]: unknown;
     };
+    /**
+     * Workflow Configurations
+     */
+    workflow_configurations?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 /**
@@ -3208,6 +3214,12 @@ export type UserConfigurationRequestResponseSchema = {
      */
     timezone?: string | null;
     /**
+     * Provider Api Keys
+     */
+    provider_api_keys?: {
+        [key: string]: string | Array<string> | null;
+    } | null;
+    /**
      * Organization Pricing
      */
     organization_pricing?: {
@@ -3879,6 +3891,140 @@ export type WorkflowVersionResponse = {
     template_context_variables?: {
         [key: string]: unknown;
     } | null;
+};
+
+/**
+ * PhoneNumberCreate
+ */
+export type PhoneNumberCreate = {
+    /**
+     * E164
+     */
+    e164: string;
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * Inbound Webhook Url
+     */
+    inbound_webhook_url?: string | null;
+    /**
+     * Termination Uri
+     */
+    termination_uri?: string | null;
+    /**
+     * Sip Username
+     */
+    sip_username?: string | null;
+    /**
+     * Sip Password
+     */
+    sip_password?: string | null;
+    /**
+     * Outbound Transport
+     */
+    outbound_transport?: string | null;
+};
+
+/**
+ * PhoneNumberResponse
+ */
+export type PhoneNumberResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * E164
+     */
+    e164: string;
+    /**
+     * Name
+     */
+    name: string | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number | null;
+    /**
+     * Workflow Name
+     */
+    workflow_name: string | null;
+    /**
+     * Inbound Webhook Url
+     */
+    inbound_webhook_url: string | null;
+    /**
+     * Inbound Url
+     */
+    inbound_url: string | null;
+    /**
+     * Termination Uri
+     */
+    termination_uri: string | null;
+    /**
+     * Sip Username
+     */
+    sip_username: string | null;
+    /**
+     * Outbound Transport
+     */
+    outbound_transport: string | null;
+};
+
+/**
+ * PhoneNumberUpdate
+ */
+export type PhoneNumberUpdate = {
+    /**
+     * Name
+     */
+    name?: string | null;
+    /**
+     * Workflow Id
+     */
+    workflow_id?: number | null;
+    /**
+     * Inbound Webhook Url
+     */
+    inbound_webhook_url?: string | null;
+    /**
+     * Clear Workflow
+     */
+    clear_workflow?: boolean;
+    /**
+     * Clear Webhook
+     */
+    clear_webhook?: boolean;
+    /**
+     * Termination Uri
+     */
+    termination_uri?: string | null;
+    /**
+     * Sip Username
+     */
+    sip_username?: string | null;
+    /**
+     * Sip Password
+     */
+    sip_password?: string | null;
+    /**
+     * Outbound Transport
+     */
+    outbound_transport?: string | null;
+    /**
+     * Clear Termination Uri
+     */
+    clear_termination_uri?: boolean;
+    /**
+     * Clear Sip Credentials
+     */
+    clear_sip_credentials?: boolean;
 };
 
 export type InitiateCallApiV1TelephonyInitiateCallPostData = {
@@ -9173,3 +9319,155 @@ export type HealthApiV1HealthGetResponses = {
 };
 
 export type HealthApiV1HealthGetResponse = HealthApiV1HealthGetResponses[keyof HealthApiV1HealthGetResponses];
+
+export type ListPhoneNumbersApiV1PhoneNumbersGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/phone-numbers';
+};
+
+export type ListPhoneNumbersApiV1PhoneNumbersGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPhoneNumbersApiV1PhoneNumbersGetError = ListPhoneNumbersApiV1PhoneNumbersGetErrors[keyof ListPhoneNumbersApiV1PhoneNumbersGetErrors];
+
+export type ListPhoneNumbersApiV1PhoneNumbersGetResponses = {
+    /**
+     * Response List Phone Numbers Api V1 Phone Numbers Get
+     *
+     * Successful Response
+     */
+    200: Array<PhoneNumberResponse>;
+};
+
+export type ListPhoneNumbersApiV1PhoneNumbersGetResponse = ListPhoneNumbersApiV1PhoneNumbersGetResponses[keyof ListPhoneNumbersApiV1PhoneNumbersGetResponses];
+
+export type CreatePhoneNumberApiV1PhoneNumbersPostData = {
+    body: PhoneNumberCreate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/phone-numbers';
+};
+
+export type CreatePhoneNumberApiV1PhoneNumbersPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreatePhoneNumberApiV1PhoneNumbersPostError = CreatePhoneNumberApiV1PhoneNumbersPostErrors[keyof CreatePhoneNumberApiV1PhoneNumbersPostErrors];
+
+export type CreatePhoneNumberApiV1PhoneNumbersPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: PhoneNumberResponse;
+};
+
+export type CreatePhoneNumberApiV1PhoneNumbersPostResponse = CreatePhoneNumberApiV1PhoneNumbersPostResponses[keyof CreatePhoneNumberApiV1PhoneNumbersPostResponses];
+
+export type DeletePhoneNumberApiV1PhoneNumbersPhoneNumberIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Phone Number Id
+         */
+        phone_number_id: number;
+    };
+    query?: never;
+    url: '/api/v1/phone-numbers/{phone_number_id}';
+};
+
+export type DeletePhoneNumberApiV1PhoneNumbersPhoneNumberIdDeleteErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeletePhoneNumberApiV1PhoneNumbersPhoneNumberIdDeleteError = DeletePhoneNumberApiV1PhoneNumbersPhoneNumberIdDeleteErrors[keyof DeletePhoneNumberApiV1PhoneNumbersPhoneNumberIdDeleteErrors];
+
+export type DeletePhoneNumberApiV1PhoneNumbersPhoneNumberIdDeleteResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeletePhoneNumberApiV1PhoneNumbersPhoneNumberIdDeleteResponse = DeletePhoneNumberApiV1PhoneNumbersPhoneNumberIdDeleteResponses[keyof DeletePhoneNumberApiV1PhoneNumbersPhoneNumberIdDeleteResponses];
+
+export type UpdatePhoneNumberApiV1PhoneNumbersPhoneNumberIdPatchData = {
+    body: PhoneNumberUpdate;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Phone Number Id
+         */
+        phone_number_id: number;
+    };
+    query?: never;
+    url: '/api/v1/phone-numbers/{phone_number_id}';
+};
+
+export type UpdatePhoneNumberApiV1PhoneNumbersPhoneNumberIdPatchErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdatePhoneNumberApiV1PhoneNumbersPhoneNumberIdPatchError = UpdatePhoneNumberApiV1PhoneNumbersPhoneNumberIdPatchErrors[keyof UpdatePhoneNumberApiV1PhoneNumbersPhoneNumberIdPatchErrors];
+
+export type UpdatePhoneNumberApiV1PhoneNumbersPhoneNumberIdPatchResponses = {
+    /**
+     * Successful Response
+     */
+    200: PhoneNumberResponse;
+};
+
+export type UpdatePhoneNumberApiV1PhoneNumbersPhoneNumberIdPatchResponse = UpdatePhoneNumberApiV1PhoneNumbersPhoneNumberIdPatchResponses[keyof UpdatePhoneNumberApiV1PhoneNumbersPhoneNumberIdPatchResponses];

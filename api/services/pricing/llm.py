@@ -71,6 +71,18 @@ LLM_PRICING: Dict[str, Dict[str, TokenPricingModel]] = {
             prompt_token_price=Decimal("0.15") / 1000000,  # $0.15 per 1M tokens
             completion_token_price=Decimal("0.60") / 1000000,  # $0.60 per 1M tokens
         ),
+        "gpt-realtime": TokenPricingModel(
+            prompt_token_price=Decimal("4.00") / 1000000,  # $4.00 per 1M tokens
+            completion_token_price=Decimal("16.00") / 1000000,  # $16.00 per 1M tokens
+        ),
+        "gpt-realtime-mini": TokenPricingModel(
+            prompt_token_price=Decimal("0.60") / 1000000,  # $0.60 per 1M tokens
+            completion_token_price=Decimal("2.40") / 1000000,  # $2.40 per 1M tokens
+        ),
+        "gpt-realtime-1.5": TokenPricingModel(
+            prompt_token_price=Decimal("4.00") / 1000000,  # $4.00 per 1M tokens
+            completion_token_price=Decimal("16.00") / 1000000,  # $16.00 per 1M tokens
+        ),
         "o1": TokenPricingModel(
             prompt_token_price=Decimal("15.00") / 1000000,  # $15.00 per 1M tokens
             completion_token_price=Decimal("60.00") / 1000000,  # $60.00 per 1M tokens

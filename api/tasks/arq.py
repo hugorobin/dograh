@@ -44,6 +44,7 @@ from api.tasks.campaign_tasks import (
     sync_campaign_source,
 )
 from api.tasks.knowledge_base_processing import process_knowledge_base_document
+from api.tasks.lifecycle_webhooks import send_lifecycle_webhook_job
 from api.tasks.run_integrations import run_integrations_post_workflow_run
 from api.tasks.s3_upload import (
     process_workflow_completion,
@@ -54,6 +55,7 @@ from api.tasks.s3_upload import (
 class WorkerSettings:
     functions = [
         run_integrations_post_workflow_run,
+        send_lifecycle_webhook_job,
         upload_voicemail_audio_to_s3,
         process_workflow_completion,
         sync_campaign_source,

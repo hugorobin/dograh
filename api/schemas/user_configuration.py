@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from api.services.configuration.registry import (
     EmbeddingsConfig,
@@ -21,6 +21,7 @@ class UserConfiguration(BaseModel):
     test_phone_number: str | None = None
     timezone: str | None = None
     last_validated_at: datetime | None = None
+    provider_api_keys: dict[str, str | list[str]] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod

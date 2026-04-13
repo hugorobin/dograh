@@ -17,6 +17,7 @@ from api.routes.reports import router as reports_router
 from api.routes.s3_signed_url import router as s3_router
 from api.routes.service_keys import router as service_keys_router
 from api.routes.superuser import router as superuser_router
+from api.routes.phone_numbers import router as phone_numbers_router
 from api.routes.telephony import router as telephony_router
 from api.routes.tool import router as tool_router
 from api.routes.turn_credentials import router as turn_credentials_router
@@ -32,6 +33,7 @@ router = APIRouter(
 )
 
 router.include_router(telephony_router)
+router.include_router(phone_numbers_router)
 router.include_router(superuser_router)
 router.include_router(workflow_router)
 router.include_router(user_router)

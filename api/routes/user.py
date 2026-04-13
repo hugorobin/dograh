@@ -84,6 +84,7 @@ class UserConfigurationRequestResponseSchema(BaseModel):
     is_realtime: bool | None = None
     test_phone_number: str | None = None
     timezone: str | None = None
+    provider_api_keys: dict[str, Union[str, list[str], None]] | None = None
     organization_pricing: dict[str, Union[float, str, bool]] | None = None
 
 

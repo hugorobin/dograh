@@ -1,0 +1,186 @@
+---
+title: "Local light models walkthrough"
+description: "Step-by-step: run small LLM, STT, TTS, and optional embeddings alongside Dograh using Ollama, LM Studio, and Speaches."
+---
+
+This guide walks through **minimal-footprint** models you can run on a laptop and wire into Dograh. It complements [Model Configurations](inference-providers) and [Local models with Docker](local-models-docker).
+
+## What you will set up
+
+| Dograh service | Example stack | Role |
+|----------------|---------------|------|
+| **LLM** | Ollama or LM Studio | Chat completions (`/v1/chat/completions`) |
+| **Transcriber (STT)** | Speaches (CPU) | OpenAI-style transcription |
+| **Voice (TTS)** | Speaches (same server) | OpenAI-style speech |
+| **Embedding** | See [Embeddings and the knowledge base](#embeddings-and-the-knowledge-base) | Optional; KB has a fixed vector size |
+
+Dograh talks to these over **OpenAI-compatible HTTP APIs**. Provider in the UI: **Speaches** for LLM/STT/TTS when pointing at local URLs.
+
+## Before you start
+
+1. **Dograh** UI and API running (self-hosted: UI often `http://localhost:3010`, API `http://localhost:8000`).
+2. **Docker** (recommended for Speaches) or another way to run Speaches per [Speaches installation](https://speaches.ai/installation/).
+3. Know where the **API** runs:
+   - API **on your host** (e.g. `uvicorn`): use `http://localhost:<port>/v1` for local services.
+   - API **inside Docker** (Mac/Windows): use `http://host.docker.internal:<port>/v1` so the container can reach Ollama/Speaches on the host. On Linux, add `extra_hosts` or use your host gateway IP (see [Local models with Docker](local-models-docker)).
+
+**Port conflict:** Dograh’s API often uses **8000**. Speaches also defaults to **8000** inside the container. In this guide, Speaches is published on the host as **8001** (`8001:8000`) so it does not clash with Dograh.
+
+Use one **base URL pattern** everywhere below:
+
+```text
+# API on host
+http://localhost:11434/v1     # Ollama LLM
+http://localhost:8001/v1      # Speaches STT + TTS (host port 8001)
+
+# API in Docker (Mac / Windows)
+http://host.docker.internal:11434/v1
+http://host.docker.internal:8001/v1
+```
+
+---
+
+## Part 1 — LLM (Ollama, small model)
+
+### 1. Install and start Ollama
+
+Install from [ollama.com](https://ollama.com/) and ensure `ollama serve` is running (the app usually starts it).
+
+### 2. Pull a small chat model
+
+Examples (pick one; smaller = less RAM, lower quality):
+
+```bash
+ollama pull tinyllama
+# or
+ollama pull phi3:mini
+# or
+ollama pull qwen2.5:0.5b-instruct
+```
+
+### 3. Confirm OpenAI-compatible endpoint
+
+```bash
+curl -s http://localhost:11434/v1/models | head
+```
+
+### 4. Configure Dograh — LLM
+
+1. Open **Model Configurations** (e.g. `http://localhost:3010/model-configurations`) → **LLM**.
+2. Provider: **speaches** (OpenAI-compatible).
+3. **Base URL:** `http://localhost:11434/v1` or `http://host.docker.internal:11434/v1` if the API is in Docker.
+4. **Model:** exact Ollama model name (e.g. `tinyllama`, `phi3:mini`, `qwen2.5:0.5b-instruct`).
+5. **API key:** use a non-empty placeholder if required (e.g. `none`); Ollama ignores it.
+
+Save.
+
+---
+
+## Part 2 — LLM alternative (LM Studio)
+
+### 1. Install LM Studio
+
+Download from [lmstudio.ai](https://lmstudio.ai/), load a **small** GGUF chat model, and open the **Local Server** tab.
+
+### 2. Start the server
+
+Enable the OpenAI-compatible server and note the **port** (often `1234`). The base URL is `http://localhost:<port>/v1`.
+
+### 3. Configure Dograh — LLM
+
+Same as Ollama, but **base URL** = your LM Studio URL (e.g. `http://localhost:1234/v1`), and **model** = the id LM Studio exposes for chat completions. Use `host.docker.internal` instead of `localhost` when Dograh’s API runs in Docker.
+
+---
+
+## Part 3 — STT and TTS (Speaches, one container)
+
+[Speaches](https://github.com/speaches-ai/speaches) provides OpenAI-compatible **transcription** and **speech**; it matches Dograh’s **Speaches** STT/TTS providers.
+
+### 1. Run Speaches on a free host port (8001)
+
+CPU example (adjust image tag if the project docs recommend a specific version):
+
+```bash
+docker run --detach \
+  --name speaches-local \
+  --publish 8001:8000 \
+  ghcr.io/speaches-ai/speaches:latest-cpu
+```
+
+GPU setups: see [Speaches installation](https://speaches.ai/installation/) (`compose.cuda.yaml`, etc.). Keep **host** port **8001** (or any port except Dograh’s API port).
+
+### 2. Download small STT and TTS models
+
+Install the Speaches CLI as in their docs, then download models (IDs may change; list them with `speaches-cli` if needed):
+
+```bash
+export SPEACHES_BASE_URL="http://localhost:8001"
+
+# Speech-to-text: small English distil-whisper (good default for a light setup)
+uvx speaches-cli model download Systran/faster-distil-whisper-small.en
+
+# Text-to-speech: Kokoro (see Speaches TTS docs for exact model id and voices)
+uvx speaches-cli model download speaches-ai/Kokoro-82M-v1.0-ONNX
+```
+
+For voice ids, follow [Speaches Text-to-Speech](https://speaches.ai/usage/text-to-speech/) (Dograh’s default Speaches TTS voice example is `af_heart`).
+
+### 3. Configure Dograh — Transcriber
+
+1. **Model Configurations** → **Transcriber (STT)**.
+2. Provider: **speaches**.
+3. **Base URL:** `http://localhost:8001/v1` or `http://host.docker.internal:8001/v1` (Docker API on Mac/Windows).
+4. **Model:** e.g. `Systran/faster-distil-whisper-small.en` (or the id Speaches lists for your download).
+5. **Language:** e.g. `en`.
+6. **API key:** placeholder such as `none` if allowed.
+
+### 4. Configure Dograh — Voice (TTS)
+
+1. **Model Configurations** → **Voice (TTS)**.
+2. Provider: **speaches**.
+3. **Base URL:** same as STT (`.../v1`).
+4. **Model:** match the Kokoro / TTS model id you installed (see Speaches docs; Dograh’s schema examples include `hexgrad/Kokoro-82M` — align with what Speaches actually exposes).
+5. **Voice:** e.g. `af_heart` (or another id from Speaches for that model).
+6. **API key:** placeholder if required.
+
+STT and TTS **do not** need the same URL as the LLM; they only need to reach **Speaches**.
+
+---
+
+## Part 4 — Embeddings and the knowledge base
+
+Dograh’s knowledge base stores vectors as **1536 dimensions** (OpenAI `text-embedding-3-small` shape). Search and indexing assume that size.
+
+- **Fully local embeddings** (e.g. Ollama `nomic-embed-text`, 768-dim) **do not match** that storage shape and will cause failures when ingesting or searching chunks.
+- **Practical options:**
+  1. **Hybrid dev setup:** keep **Embedding** on **OpenAI** (or another hosted 1536-dim API) in Model Configurations while using local LLM + Speaches for calls.
+  2. **Voice-only testing:** if you are not using the knowledge base, embedding configuration is less critical for call audio.
+  3. **Advanced:** run an OpenAI-compatible embedding server that returns **1536-dimensional** vectors and point Dograh at it. The **OpenRouter**-type embeddings configuration in Dograh includes a **`base_url`** field: set provider to that option, set **base URL** to your server’s `/v1` root, **model** to the server’s embedding model id, and a non-empty **API key** if the UI requires it. You must still satisfy the **1536** dimension requirement unless you change the database schema (out of scope here).
+
+---
+
+## Part 5 — Smoke test
+
+1. **API health:** `http://localhost:8000/api/v1/health`
+2. **Ollama:** `curl http://localhost:11434/v1/models`
+3. **Speaches:** `curl -s http://localhost:8001/v1/models` (or the models endpoint Speaches documents)
+4. In Dograh, place a **test call** or use your usual WebRTC/test flow. If the LLM times out from inside Docker, recheck **base URL** (`host.docker.internal` vs `localhost`).
+
+---
+
+## Reference — Dograh defaults (Speaches)
+
+These defaults illustrate what the UI expects; your **base URL** must match where you actually run the server (and avoid port **8000** if Dograh already uses it):
+
+- LLM Speaches: OpenAI-compatible chat at `base_url` (example in app: Ollama-style `http://localhost:11434/v1`).
+- STT / TTS Speaches: OpenAI-compatible audio APIs under `base_url` ending in `/v1` (Speaches docs use `http://localhost:8000/v1` — map to **8001** in this guide).
+
+---
+
+## See also
+
+- [Model Configurations](inference-providers)
+- [Local models with Docker](local-models-docker)
+- [LLM](llm), [Voice](voice), [Transcriber](transcriber)
+- [Speaches documentation](https://speaches.ai/)
+- [Ollama OpenAI compatibility](https://github.com/ollama/ollama/blob/main/docs/openai.md)

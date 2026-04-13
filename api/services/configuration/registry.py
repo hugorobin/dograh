@@ -291,35 +291,55 @@ class SpeachesLLMConfiguration(BaseLLMConfiguration):
     api_key: str | list[str] | None = Field(default=None)
 
 
-OPENAI_REALTIME_MODELS = ["gpt-4o-realtime-preview", "gpt-4o-mini-realtime-preview"]
+OPENAI_REALTIME_MODELS = [
+    "gpt-4o-realtime-preview",
+    "gpt-4o-mini-realtime-preview",
+    "gpt-realtime",
+    "gpt-realtime-mini",
+    "gpt-realtime-1.5",
+]
 OPENAI_REALTIME_VOICES = [
     "alloy",
     "ash",
     "ballad",
+    "cedar",
     "coral",
     "echo",
+    "marin",
     "sage",
     "shimmer",
     "verse",
 ]
+OPENAI_REALTIME_LANGUAGES = ["en", "fr"]
 
 
-# @register_service(ServiceType.REALTIME)
-# class OpenAIRealtimeLLMConfiguration(BaseLLMConfiguration):
-#     provider: Literal[ServiceProviders.OPENAI_REALTIME] = (
-#         ServiceProviders.OPENAI_REALTIME
-#     )
-#     model: str = Field(
-#         default="gpt-4o-realtime-preview",
-#         json_schema_extra={
-#             "examples": OPENAI_REALTIME_MODELS,
-#             "allow_custom_input": True,
-#         },
-#     )
-#     voice: str = Field(
-#         default="alloy",
-#         json_schema_extra={"examples": OPENAI_REALTIME_VOICES},
-#     )
+@register_service(ServiceType.REALTIME)
+class OpenAIRealtimeLLMConfiguration(BaseLLMConfiguration):
+    provider: Literal[ServiceProviders.OPENAI_REALTIME] = (
+        ServiceProviders.OPENAI_REALTIME
+    )
+    model: str = Field(
+        default="gpt-realtime-1.5",
+        json_schema_extra={
+            "examples": OPENAI_REALTIME_MODELS,
+            "allow_custom_input": True,
+        },
+    )
+    voice: str = Field(
+        default="alloy",
+        json_schema_extra={"examples": OPENAI_REALTIME_VOICES},
+    )
+    language: str | None = Field(
+        default=None,
+        description=(
+            "ISO-639-1 code for input audio transcription (e.g. en, fr). "
+            "Improves accuracy and latency; omit for automatic language detection."
+        ),
+        json_schema_extra={
+            "examples": OPENAI_REALTIME_LANGUAGES,
+            "allow_custom_input": True,
+        },
+    )
 
 
 GOOGLE_REALTIME_MODELS = ["gemini-3.1-flash-live-preview"]
@@ -403,7 +423,7 @@ LLMConfig = Annotated[
 
 RealtimeConfig = Annotated[
     Union[
-        # OpenAIRealtimeLLMConfiguration,
+        OpenAIRealtimeLLMConfiguration,
         GoogleRealtimeLLMConfiguration,
     ],
     Field(discriminator="provider"),

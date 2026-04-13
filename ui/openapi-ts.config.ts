@@ -1,7 +1,8 @@
 import { defineConfig } from '@hey-api/openapi-ts';
 
 export default defineConfig({
-    input: 'http://127.0.0.1:8000/api/v1/openapi.json',
+    // Run `python3 scripts/merge_openapi_phone_numbers.py` first (writes openapi.json).
+    input: './openapi.json',
     output: 'src/client',
     plugins: [{
         name: '@hey-api/client-fetch',

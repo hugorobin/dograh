@@ -75,6 +75,17 @@ def register_event_handlers(
         ):
             ready_state["initial_response_triggered"] = True
 
+            try:
+                await enqueue_job(
+                    FunctionNames.SEND_LIFECYCLE_WEBHOOK_JOB,
+                    workflow_run_id,
+                    "call_started",
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to enqueue call_started lifecycle webhook for run {workflow_run_id}: {e}"
+                )
+
             # Wait for pre-call fetch if in progress, playing ringer meanwhile
             if pre_call_fetch_task is not None:
                 if not pre_call_fetch_task.done():

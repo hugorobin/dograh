@@ -1,0 +1,358 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Dograh phone-numbers fragment", "version": "0.0.0" },
+  "paths": {
+    "/api/v1/phone-numbers": {
+      "get": {
+        "tags": ["phone-numbers"],
+        "summary": "List Phone Numbers",
+        "description": "List all phone numbers for the current organization.",
+        "operationId": "list_phone_numbers_api_v1_phone_numbers_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/PhoneNumberResponse" },
+                  "title": "Response List Phone Numbers Api V1 Phone Numbers Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["phone-numbers"],
+        "summary": "Create Phone Number",
+        "description": "Register a phone number for the current organization.",
+        "operationId": "create_phone_number_api_v1_phone_numbers_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PhoneNumberCreate" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PhoneNumberResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/phone-numbers/{phone_number_id}": {
+      "patch": {
+        "tags": ["phone-numbers"],
+        "summary": "Update Phone Number",
+        "description": "Update a phone number's name, workflow, or inbound webhook URL.",
+        "operationId": "update_phone_number_api_v1_phone_numbers__phone_number_id__patch",
+        "parameters": [
+          {
+            "name": "phone_number_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Phone Number Id" }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PhoneNumberUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PhoneNumberResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["phone-numbers"],
+        "summary": "Delete Phone Number",
+        "description": "Remove a phone number from the organization.",
+        "operationId": "delete_phone_number_api_v1_phone_numbers__phone_number_id__delete",
+        "parameters": [
+          {
+            "name": "phone_number_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Phone Number Id" }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Successful Response" },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PhoneNumberCreate": {
+        "properties": {
+          "e164": { "type": "string", "title": "E164" },
+          "name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Name"
+          },
+          "workflow_id": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Workflow Id"
+          },
+          "inbound_webhook_url": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Inbound Webhook Url"
+          },
+          "termination_uri": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Termination Uri"
+          },
+          "sip_username": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Sip Username"
+          },
+          "sip_password": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Sip Password"
+          },
+          "outbound_transport": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Outbound Transport",
+            "default": "TCP"
+          }
+        },
+        "type": "object",
+        "required": ["e164"],
+        "title": "PhoneNumberCreate"
+      },
+      "PhoneNumberResponse": {
+        "properties": {
+          "id": { "type": "integer", "title": "Id" },
+          "e164": { "type": "string", "title": "E164" },
+          "name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Name"
+          },
+          "workflow_id": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Workflow Name"
+          },
+          "inbound_webhook_url": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Inbound Webhook Url"
+          },
+          "inbound_url": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Inbound Url"
+          },
+          "termination_uri": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Termination Uri"
+          },
+          "sip_username": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Sip Username"
+          },
+          "outbound_transport": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Outbound Transport"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "e164",
+          "name",
+          "workflow_id",
+          "workflow_name",
+          "inbound_webhook_url",
+          "inbound_url",
+          "termination_uri",
+          "sip_username",
+          "outbound_transport"
+        ],
+        "title": "PhoneNumberResponse"
+      },
+      "PhoneNumberUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Name"
+          },
+          "workflow_id": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Workflow Id"
+          },
+          "inbound_webhook_url": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Inbound Webhook Url"
+          },
+          "clear_workflow": {
+            "type": "boolean",
+            "title": "Clear Workflow",
+            "default": false
+          },
+          "clear_webhook": {
+            "type": "boolean",
+            "title": "Clear Webhook",
+            "default": false
+          },
+          "termination_uri": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Termination Uri"
+          },
+          "sip_username": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Sip Username"
+          },
+          "sip_password": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Sip Password"
+          },
+          "outbound_transport": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Outbound Transport"
+          },
+          "clear_termination_uri": {
+            "type": "boolean",
+            "title": "Clear Termination Uri",
+            "default": false
+          },
+          "clear_sip_credentials": {
+            "type": "boolean",
+            "title": "Clear Sip Credentials",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "PhoneNumberUpdate"
+      }
+    }
+  }
+}

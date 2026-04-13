@@ -24,6 +24,9 @@ from api.services.configuration.masking import (
 from api.services.configuration.resolve import resolve_effective_config
 from api.services.mps_service_key_client import mps_service_key_client
 from api.services.storage import storage_fs
+from api.services.workflow.agent_mode_validation import (
+    validate_agent_mode_constraints,
+)
 from api.services.workflow.dto import ReactFlowDTO
 from api.services.workflow.duplicate import duplicate_workflow
 from api.services.workflow.errors import ItemKind, WorkflowError
@@ -141,6 +144,7 @@ class WorkflowTemplateResponse(BaseModel):
 class CreateWorkflowRequest(BaseModel):
     name: str
     workflow_definition: dict
+    workflow_configurations: dict | None = None
 
 
 class DuplicateTemplateRequest(BaseModel):
@@ -280,11 +284,17 @@ async def create_workflow(
         request: The create workflow request
         user: The user to create the workflow for
     """
+    if request.workflow_configurations:
+        validate_agent_mode_constraints(
+            request.workflow_definition,
+            request.workflow_configurations.get("agent_mode"),
+        )
     workflow = await db_client.create_workflow(
         request.name,
         request.workflow_definition,
         user.id,
         user.selected_organization_id,
+        workflow_configurations=request.workflow_configurations,
     )
 
     # Sync agent triggers if workflow definition contains any
@@ -684,15 +694,20 @@ async def update_workflow(
         HTTPException: If the workflow is not found or if there's a database error
     """
     try:
-        # Restore real API keys where the incoming definition has masked placeholders
+        # Restore real API keys where the incoming definition has masked placeholders.
+        # Also fetch existing_draft here so it can be reused for agent_mode validation below.
         workflow_definition = request.workflow_definition
         if workflow_definition:
             existing_workflow = await db_client.get_workflow(
                 workflow_id, organization_id=user.selected_organization_id
             )
+            existing_draft = (
+                await db_client.get_draft_version(workflow_id)
+                if existing_workflow
+                else None
+            )
             if existing_workflow:
                 # Merge against what the user was editing (draft or published)
-                existing_draft = await db_client.get_draft_version(workflow_id)
                 existing_def = (
                     existing_draft.workflow_json
                     if existing_draft
@@ -721,6 +736,22 @@ async def update_workflow(
                 )
             except ValueError as e:
                 raise HTTPException(status_code=422, detail=str(e))
+
+        if workflow_definition:
+            if request.workflow_configurations is not None:
+                agent_mode = request.workflow_configurations.get("agent_mode")
+            else:
+                stored_cfg = (
+                    existing_draft.workflow_configurations
+                    if existing_draft
+                    else (
+                        existing_workflow.released_definition.workflow_configurations
+                        if existing_workflow and existing_workflow.released_definition
+                        else {}
+                    )
+                ) or {}
+                agent_mode = stored_cfg.get("agent_mode")
+            validate_agent_mode_constraints(workflow_definition, agent_mode)
 
         workflow = await db_client.update_workflow(
             workflow_id=workflow_id,

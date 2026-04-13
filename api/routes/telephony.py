@@ -6,7 +6,9 @@ Consolidated from split modules for easier maintenance.
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import Optional
+from typing import Any, Optional
+
+import httpx
 
 from fastapi import (
     APIRouter,
@@ -426,12 +428,31 @@ async def _validate_inbound_request(
 
 
 async def _create_inbound_workflow_run(
-    workflow_id: int, user_id: int, provider: str, normalized_data, data_source: str
+    workflow_id: int,
+    user_id: int,
+    provider: str,
+    normalized_data,
+    data_source: str,
+    extra_initial_context: Optional[dict[str, Any]] = None,
 ) -> int:
     """Create workflow run for inbound call and return run ID"""
     call_id = normalized_data.call_id
     numeric_suffix = int(str(uuid.uuid4()).replace("-", "")[:8], 16) % 100000000
     workflow_run_name = f"WR-TEL-IN-{numeric_suffix:08d}"
+
+    base_initial = {
+        "caller_number": normalized_data.from_number,
+        "called_number": normalized_data.to_number,
+        "direction": "inbound",
+        "account_id": normalized_data.account_id,
+        "provider": provider,
+        "data_source": data_source,
+        "from_country": normalized_data.from_country,
+        "to_country": normalized_data.to_country,
+        "raw_webhook_data": normalized_data.raw_data,
+    }
+    if extra_initial_context:
+        base_initial = {**base_initial, **extra_initial_context}
 
     workflow_run = await db_client.create_workflow_run(
         workflow_run_name,
@@ -439,17 +460,7 @@ async def _create_inbound_workflow_run(
         provider,  # Use detected provider as mode
         user_id=user_id,
         call_type=CallType.INBOUND,
-        initial_context={
-            "caller_number": normalized_data.from_number,
-            "called_number": normalized_data.to_number,
-            "direction": "inbound",
-            "account_id": normalized_data.account_id,
-            "provider": provider,
-            "data_source": data_source,
-            "from_country": normalized_data.from_country,
-            "to_country": normalized_data.to_country,
-            "raw_webhook_data": normalized_data.raw_data,
-        },
+        initial_context=base_initial,
         gathered_context={
             "call_id": call_id,
         },
@@ -459,6 +470,98 @@ async def _create_inbound_workflow_run(
         f"Created inbound workflow run {workflow_run.id} for {provider} call {call_id}"
     )
     return workflow_run.id
+
+
+INBOUND_WEBHOOK_TIMEOUT_SEC = 10.0
+INBOUND_WEBHOOK_MAX_ATTEMPTS = 3
+
+
+async def _call_inbound_preconnect_webhook(
+    workflow,
+    path_workflow_id: int,
+    normalized_data,
+    inbound_webhook_url_override: Optional[str] = None,
+) -> dict[str, Any]:
+    """
+    Optional Retell-style inbound webhook: POST to workflow_configurations.inbound_webhook_url
+    before creating the workflow run. Non-fatal on failure.
+
+    If ``inbound_webhook_url_override`` is set, it is used instead of the workflow's URL.
+
+    Returns keys: dynamic_variables (dict), metadata (dict), override_workflow_id (int | None).
+    """
+    out: dict[str, Any] = {
+        "dynamic_variables": {},
+        "metadata": {},
+        "override_workflow_id": None,
+    }
+    configs = workflow.workflow_configurations or {}
+    if not isinstance(configs, dict):
+        configs = {}
+    url = (inbound_webhook_url_override or "").strip() or (
+        configs.get("inbound_webhook_url") or ""
+    ).strip()
+    if not url:
+        return out
+
+    payload = {
+        "event": "call_inbound",
+        "call_inbound": {
+            "from_number": normalized_data.from_number or "",
+            "to_number": normalized_data.to_number or "",
+            "workflow_id": path_workflow_id,
+        },
+    }
+
+    last_err: Exception | None = None
+    for attempt in range(1, INBOUND_WEBHOOK_MAX_ATTEMPTS + 1):
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=INBOUND_WEBHOOK_TIMEOUT_SEC,
+                )
+            if response.status_code < 200 or response.status_code >= 300:
+                logger.warning(
+                    f"Inbound preconnect webhook non-2xx (attempt {attempt}): "
+                    f"{response.status_code} {response.text[:200]}"
+                )
+                last_err = RuntimeError(f"HTTP {response.status_code}")
+                continue
+            try:
+                body = response.json()
+            except Exception as e:
+                logger.warning(f"Inbound preconnect webhook invalid JSON: {e}")
+                return out
+            ci = body.get("call_inbound")
+            if not isinstance(ci, dict):
+                return out
+            dv = ci.get("dynamic_variables")
+            if isinstance(dv, dict):
+                out["dynamic_variables"] = dv
+            md = ci.get("metadata")
+            if isinstance(md, dict):
+                out["metadata"] = md
+            owid = ci.get("override_workflow_id")
+            if owid is not None:
+                try:
+                    out["override_workflow_id"] = int(owid)
+                except (TypeError, ValueError):
+                    logger.warning(
+                        f"Inbound preconnect webhook ignored invalid override_workflow_id: {owid!r}"
+                    )
+            return out
+        except Exception as e:
+            last_err = e
+            logger.warning(
+                f"Inbound preconnect webhook error (attempt {attempt}/{INBOUND_WEBHOOK_MAX_ATTEMPTS}): {e}"
+            )
+
+    if last_err:
+        logger.warning(f"Inbound preconnect webhook failed after retries: {last_err}")
+    return out
 
 
 async def _validate_organization_provider_config(
@@ -1503,18 +1606,90 @@ async def handle_inbound_telephony(
                 TelephonyError.QUOTA_EXCEEDED
             )
 
+        workflow = workflow_context["workflow"]
+
+        # --- Phone number registry: per-DID workflow and/or inbound webhook override ---
+        # Check if this called number is registered in the phone_numbers table.
+        # If the row has a workflow_id, that workflow takes precedence over the URL path.
+        # If the row has an inbound_webhook_url, it overrides the workflow's setting.
+        phone_number_entry = await db_client.get_phone_number_by_e164(
+            normalized_data.to_number, workflow_context["organization_id"]
+        )
+        did_webhook_url_override: Optional[str] = None
+        if phone_number_entry is not None:
+            logger.info(
+                f"Found phone number entry id={phone_number_entry.id} for {normalized_data.to_number}"
+            )
+            if phone_number_entry.inbound_webhook_url:
+                did_webhook_url_override = phone_number_entry.inbound_webhook_url
+            if (
+                phone_number_entry.workflow_id is not None
+                and phone_number_entry.workflow_id != workflow_id
+            ):
+                did_wf = await db_client.get_workflow_by_id(phone_number_entry.workflow_id)
+                if did_wf and did_wf.organization_id == workflow.organization_id:
+                    workflow_id = did_wf.id
+                    workflow = did_wf
+                    workflow_context["workflow"] = did_wf
+                    if did_wf.user_id is not None:
+                        workflow_context["user_id"] = did_wf.user_id
+                    logger.info(
+                        f"Phone number registry overrode workflow → {workflow_id}"
+                    )
+                else:
+                    logger.warning(
+                        f"Phone number entry workflow_id={phone_number_entry.workflow_id} invalid; "
+                        f"keeping path workflow_id={workflow_id}"
+                    )
+
+        inbound_hook = await _call_inbound_preconnect_webhook(
+            workflow,
+            workflow_id,
+            normalized_data,
+            inbound_webhook_url_override=did_webhook_url_override,
+        )
+
+        effective_workflow_id = workflow_id
+        effective_user_id = workflow_context["user_id"]
+        override_wid = inbound_hook.get("override_workflow_id")
+        if override_wid is not None:
+            owf = await db_client.get_workflow_by_id(int(override_wid))
+            if owf and owf.organization_id == workflow.organization_id:
+                effective_workflow_id = owf.id
+                workflow_context["workflow"] = owf
+                if owf.user_id is not None:
+                    effective_user_id = owf.user_id
+                    workflow_context["user_id"] = effective_user_id
+                logger.info(
+                    f"Inbound preconnect webhook routed workflow {workflow_id} -> {effective_workflow_id}"
+                )
+            else:
+                logger.warning(
+                    f"Inbound preconnect webhook override_workflow_id={override_wid} invalid or wrong org; "
+                    f"using path workflow_id={workflow_id}"
+                )
+
+        extra_initial: dict[str, Any] = {}
+        dv = inbound_hook.get("dynamic_variables") or {}
+        if isinstance(dv, dict) and dv:
+            extra_initial.update(dv)
+        md = inbound_hook.get("metadata") or {}
+        if isinstance(md, dict) and md:
+            extra_initial["inbound_webhook_metadata"] = md
+
         # Create workflow run
         workflow_run_id = await _create_inbound_workflow_run(
-            workflow_id,
-            workflow_context["user_id"],
+            effective_workflow_id,
+            effective_user_id,
             workflow_context["provider"],
             normalized_data,
             data_source,
+            extra_initial_context=extra_initial if extra_initial else None,
         )
 
         # Generate response URLs
         backend_endpoint, wss_backend_endpoint = await get_backend_endpoints()
-        websocket_url = f"{wss_backend_endpoint}/api/v1/telephony/ws/{workflow_id}/{workflow_context['user_id']}/{workflow_run_id}"
+        websocket_url = f"{wss_backend_endpoint}/api/v1/telephony/ws/{effective_workflow_id}/{workflow_context['user_id']}/{workflow_run_id}"
 
         # Telnyx requires answering the call via REST API (not via webhook response)
         if provider_class.PROVIDER_NAME == "telnyx":

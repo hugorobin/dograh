@@ -495,6 +495,11 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
         )
         from pipecat.services.openai.realtime.llm import OpenAIRealtimeLLMService
 
+        transcription = (
+            InputAudioTranscription(language=language)
+            if language
+            else InputAudioTranscription()
+        )
         return OpenAIRealtimeLLMService(
             api_key=api_key,
             settings=OpenAIRealtimeLLMService.Settings(
@@ -502,7 +507,7 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
                 session_properties=SessionProperties(
                     audio=AudioConfiguration(
                         input=AudioInput(
-                            transcription=InputAudioTranscription(),
+                            transcription=transcription,
                         ),
                         output=AudioOutput(
                             voice=voice or "alloy",

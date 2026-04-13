@@ -41,6 +41,8 @@
             "group": "Configurations",
             "pages": [
               "configurations/inference-providers",
+              "configurations/local-models-docker",
+              "configurations/local-light-models-guide",
               "configurations/llm",
               "configurations/voice",
               "configurations/transcriber",

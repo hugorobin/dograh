@@ -72,7 +72,7 @@ curl -o docker-compose.yaml https://raw.githubusercontent.com/dograh-hq/dograh/m
 - 🔧 **No vendor lock-in**: Self-hostable platform vs proprietary SaaS solutions
 - 🤖 **AI Testing Personas**: Test your bots with LoopTalk AI that mimics real customer interactions
 - 🔓 **100% Open Source**: Every line of code is open - no hidden logic, no black boxes (unlike Vapi)
-- 🔄 **Flexible Integration**: Bring your own LLM, TTS, or STT - or use Dograh's APIs
+- 🔄 **Flexible Integration**: Bring your own LLM, TTS, or STT—including OpenAI-compatible servers (Ollama, LM Studio, etc.) via Speaches—or use Dograh's APIs
 - ☁️ **Deploy anywhere**: Self-host or use our hosted version at app.dograh.com
 
 ## Features
@@ -81,8 +81,13 @@ curl -o docker-compose.yaml https://raw.githubusercontent.com/dograh-hq/dograh/m
 
 - Telephony: Built-in telephony integration like Twilio, Vonage, Vobiz, Cloudonix (easily add others)
 - Languages: English support (expandable to other languages)
-- Custom Models: Bring your own TTS/STT models
+- Custom Models: Bring your own LLM (including OpenAI-compatible / Speaches), TTS, and STT
 - Real-time Processing: Low-latency voice interactions
+
+### Workflow authoring
+
+- **Single prompt**, **multi-prompt**, or **full graph** canvas—choose how you build the agent; calls still run from the workflow graph.
+- **Server checks**: Saving validates that single-prompt workflows have exactly one agent node so mode and graph stay aligned.
 
 ### Developer Experience
 
@@ -105,11 +110,15 @@ Architecture diagram _(coming soon)_
 
 ### Local Development
 
-Refer [Local Setup](https://docs.dograh.com/contribution/setup)
+Refer to [Local Setup](https://docs.dograh.com/contribution/setup) for day-to-day development. To run **Docker Compose from a git clone** with locally built `api` and `ui` images (and the Pipecat submodule), use **[DEPLOY_GUIDE.md](DEPLOY_GUIDE.md)**.
 
 ### Self-Hosted Deployment
 
 For detailed deployment instructions including remote server setup with HTTPS, see our [Docker Deployment Guide](https://docs.dograh.com/deployment/docker).
+
+To **run API and UI built from this repository** instead of pre-built registry images—while keeping existing Compose volumes—use **[DEPLOY_GUIDE.md](DEPLOY_GUIDE.md)**. Copy [`docker-compose.override.example.yaml`](docker-compose.override.example.yaml) to `docker-compose.override.yaml` (ignored by git), run `git submodule update --init --recursive` for **Pipecat**, and set **`COMPOSE_PROJECT_NAME`** to match your stack so Postgres and other data are reused.
+
+When the API runs in Docker and models or TTS live on your host (**Ollama**, **LM Studio**, self-hosted Speaches, etc.), configure **`base_url`** with **`host.docker.internal`** as described in [Local models with Docker](https://docs.dograh.com/configurations/local-models-docker).
 
 ### Production (Self-Hosted)
 

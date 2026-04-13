@@ -9,14 +9,23 @@ import {
 import { BrushCleaning, Maximize2, Minus, Plus, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { createWorkflowDraftApiV1WorkflowWorkflowIdCreateDraftPost, getWorkflowVersionsApiV1WorkflowWorkflowIdVersionsGet, listDocumentsApiV1KnowledgeBaseDocumentsGet, listRecordingsApiV1WorkflowRecordingsGet, listToolsApiV1ToolsGet } from '@/client';
 import type { DocumentResponseSchema, RecordingResponseSchema, ToolResponse } from '@/client/types.gen';
+import { MultiPromptEditor, type MultiPromptEditorHandle } from '@/components/editors/MultiPromptEditor';
+import { SinglePromptEditor, type SinglePromptEditorHandle } from '@/components/editors/SinglePromptEditor';
 import { FlowEdge, FlowNode, NodeType } from "@/components/flow/types";
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUserConfig } from '@/context/UserConfigContext';
-import { WorkflowConfigurations } from '@/types/workflow-configurations';
+import {
+    DEFAULT_WORKFLOW_CONFIGURATIONS,
+    getAgentMode,
+    type AgentMode,
+    type ModelOverrides,
+    type WorkflowConfigurations,
+} from '@/types/workflow-configurations';
 
 import AddNodePanel from "../../../components/flow/AddNodePanel";
 import CustomEdge from "../../../components/flow/edges/CustomEdge";
@@ -24,6 +33,7 @@ import { AgentNode, EndCall, GlobalNode, QANode, StartCall, TriggerNode, Webhook
 import { PhoneCallDialog } from './components/PhoneCallDialog';
 import { VersionHistoryPanel, WorkflowVersion } from './components/VersionHistoryPanel';
 import { WorkflowEditorHeader } from "./components/WorkflowEditorHeader";
+import { WorkflowModelBar } from "./components/WorkflowModelBar";
 import { WorkflowProvider } from "./contexts/WorkflowContext";
 import { useWorkflowState } from "./hooks/useWorkflowState";
 import { layoutNodes } from './utils/layoutNodes';
@@ -83,6 +93,22 @@ function RenderWorkflow({ initialWorkflowName, workflowId, initialFlow, initialT
     const [tools, setTools] = useState<ToolResponse[] | undefined>(undefined);
     const [recordings, setRecordings] = useState<RecordingResponseSchema[]>([]);
 
+    const [authoringMode, setAuthoringMode] = useState<AgentMode>(() =>
+        getAgentMode(initialWorkflowConfigurations)
+    );
+    const singlePromptRef = useRef<SinglePromptEditorHandle>(null);
+    const multiPromptRef = useRef<MultiPromptEditorHandle>(null);
+
+    const interceptSave = useCallback(() => {
+        if (authoringMode === 'single_prompt') {
+            return singlePromptRef.current?.saveAll() ?? Promise.resolve(undefined);
+        }
+        if (authoringMode === 'multi_prompt') {
+            return multiPromptRef.current?.saveAll() ?? Promise.resolve(undefined);
+        }
+        return null;
+    }, [authoringMode]);
+
     const {
         rfInstance,
         nodes,
@@ -91,12 +117,14 @@ function RenderWorkflow({ initialWorkflowName, workflowId, initialFlow, initialT
         workflowName,
         isDirty,
         workflowValidationErrors,
+        workflowConfigurations,
         setNodes,
         setEdges,
         setIsDirty,
         setIsAddNodePanelOpen,
         handleNodeSelect,
         saveWorkflow,
+        saveWorkflowCore,
         onConnect,
         onEdgesChange,
         onNodesChange,
@@ -108,7 +136,25 @@ function RenderWorkflow({ initialWorkflowName, workflowId, initialFlow, initialT
         initialTemplateContextVariables,
         initialWorkflowConfigurations,
         user,
+        interceptSave,
     });
+
+    const handleSaveModelOverrides = useCallback(
+        async (overrides: ModelOverrides | undefined) => {
+            if (isDirty) {
+                toast.error('Save or discard workflow changes before updating model settings.');
+                throw new Error('WORKFLOW_DIRTY');
+            }
+            const wc = workflowConfigurations ?? DEFAULT_WORKFLOW_CONFIGURATIONS;
+            await saveWorkflowCore(false, {
+                workflowConfigurations: {
+                    ...wc,
+                    model_overrides: overrides,
+                },
+            });
+        },
+        [isDirty, saveWorkflowCore, workflowConfigurations],
+    );
 
     // Derive hasDraft from the current version status
     const hasDraft = currentVersionStatus === "draft";
@@ -155,6 +201,7 @@ function RenderWorkflow({ initialWorkflowName, workflowId, initialFlow, initialT
         // The key={activeVersionId} on <ReactFlow> forces a clean remount.
         setNodes(flowNodes);
         setEdges(flowEdges);
+        setAuthoringMode(getAgentMode(version.workflow_configurations as WorkflowConfigurations));
         // Never mark dirty when switching versions — historical versions are
         // read-only, and loading the draft is restoring the saved state.
         setIsDirty(false);
@@ -301,11 +348,12 @@ function RenderWorkflow({ initialWorkflowName, workflowId, initialFlow, initialT
     // Memoize the context value to prevent unnecessary re-renders
     const workflowContextValue = useMemo(() => ({
         saveWorkflow: guardedSaveWorkflow,
+        saveWorkflowCore,
         documents,
         tools,
         recordings,
         readOnly: isViewingHistoricalVersion,
-    }), [guardedSaveWorkflow, documents, tools, recordings, isViewingHistoricalVersion]);
+    }), [guardedSaveWorkflow, saveWorkflowCore, documents, tools, recordings, isViewingHistoricalVersion]);
 
     return (
         <WorkflowProvider value={workflowContextValue}>
@@ -329,8 +377,28 @@ function RenderWorkflow({ initialWorkflowName, workflowId, initialFlow, initialT
                     onPublished={handlePublished}
                 />
 
+                <WorkflowModelBar
+                    workflowConfigurations={workflowConfigurations ?? DEFAULT_WORKFLOW_CONFIGURATIONS}
+                    workflowId={workflowId}
+                    readOnly={isViewingHistoricalVersion}
+                    onSaveOverrides={handleSaveModelOverrides}
+                />
+
+                {/* Alternate authoring UIs */}
+                {authoringMode === 'single_prompt' && (
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                        <SinglePromptEditor ref={singlePromptRef} readOnly={isViewingHistoricalVersion} />
+                    </div>
+                )}
+                {authoringMode === 'multi_prompt' && (
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                        <MultiPromptEditor ref={multiPromptRef} readOnly={isViewingHistoricalVersion} />
+                    </div>
+                )}
+
                 {/* Workflow Canvas */}
-                <div className="flex-1 relative">
+                {authoringMode === 'graph' && (
+                <div className="flex-1 relative min-h-0">
                     <ReactFlow
                         key={activeVersionId ?? 'current'}
                         nodes={nodes}
@@ -482,13 +550,14 @@ function RenderWorkflow({ initialWorkflowName, workflowId, initialFlow, initialT
                             )}
                         </TooltipProvider>
                     </div>
-                </div>
 
-                <AddNodePanel
-                    isOpen={isAddNodePanelOpen}
-                    onNodeSelect={handleNodeSelect}
-                    onClose={() => setIsAddNodePanelOpen(false)}
-                />
+                    <AddNodePanel
+                        isOpen={isAddNodePanelOpen}
+                        onNodeSelect={handleNodeSelect}
+                        onClose={() => setIsAddNodePanelOpen(false)}
+                    />
+                </div>
+                )}
 
                 <VersionHistoryPanel
                     isOpen={isVersionPanelOpen}

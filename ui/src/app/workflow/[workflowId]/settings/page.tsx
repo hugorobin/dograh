@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, BookA, Brain, ExternalLink, Loader2, Mic, Pause, PhoneOff, Play, Rocket, Settings, Trash2Icon, Upload, Variable, X } from "lucide-react";
+import { ArrowLeft, BookA, Brain, ExternalLink, Loader2, Mic, Pause, PhoneOff, Play, Rocket, Settings, Trash2Icon, Upload, Variable, Webhook, X } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -69,6 +69,7 @@ Respond with ONLY "CONVERSATION" if a person answered, or "VOICEMAIL" if it's vo
 // Sidebar navigation items
 const NAV_ITEMS = [
     { id: "general", label: "General", icon: Settings },
+    { id: "webhooks", label: "Webhooks", icon: Webhook },
     { id: "models", label: "Model Overrides", icon: Brain },
     { id: "variables", label: "Template Variables", icon: Variable },
     { id: "dictionary", label: "Dictionary", icon: BookA },
@@ -643,6 +644,114 @@ function DictionarySection({
 }
 
 // ---------------------------------------------------------------------------
+// Section: Inbound / outbound lifecycle webhooks (Retell-style)
+// ---------------------------------------------------------------------------
+
+function WebhooksSection({
+    workflowConfigurations,
+    workflowName,
+    onSave,
+}: {
+    workflowConfigurations: WorkflowConfigurations;
+    workflowName: string;
+    onSave: (configurations: WorkflowConfigurations, workflowName: string) => Promise<void>;
+}) {
+    const [inboundUrl, setInboundUrl] = useState(
+        typeof workflowConfigurations.inbound_webhook_url === "string"
+            ? workflowConfigurations.inbound_webhook_url
+            : "",
+    );
+    const [outboundUrl, setOutboundUrl] = useState(
+        typeof workflowConfigurations.outbound_webhook_url === "string"
+            ? workflowConfigurations.outbound_webhook_url
+            : "",
+    );
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        setInboundUrl(
+            typeof workflowConfigurations.inbound_webhook_url === "string"
+                ? workflowConfigurations.inbound_webhook_url
+                : "",
+        );
+        setOutboundUrl(
+            typeof workflowConfigurations.outbound_webhook_url === "string"
+                ? workflowConfigurations.outbound_webhook_url
+                : "",
+        );
+    }, [workflowConfigurations.inbound_webhook_url, workflowConfigurations.outbound_webhook_url]);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave(
+                {
+                    ...workflowConfigurations,
+                    inbound_webhook_url: inboundUrl.trim(),
+                    outbound_webhook_url: outboundUrl.trim(),
+                },
+                workflowName,
+            );
+        } catch (error) {
+            console.error("Failed to save webhook URLs:", error);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card id="webhooks">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                    <Webhook className="h-4 w-4" />
+                    Webhooks
+                </CardTitle>
+                <CardDescription>
+                    Optional URLs similar to Retell: an{" "}
+                    <strong>inbound pre-connect</strong> webhook runs before an inbound call is answered (your endpoint
+                    returns <code className="rounded bg-muted px-1 text-xs">call_inbound</code> with{" "}
+                    <code className="rounded bg-muted px-1 text-xs">dynamic_variables</code> and optional{" "}
+                    <code className="rounded bg-muted px-1 text-xs">override_workflow_id</code>).{" "}
+                    <strong>Outbound lifecycle</strong> posts <code className="rounded bg-muted px-1 text-xs">call_started</code>{" "}
+                    and <code className="rounded bg-muted px-1 text-xs">call_ended</code> with an HMAC signature header{" "}
+                    <code className="rounded bg-muted px-1 text-xs">X-Dograh-Signature</code> when{" "}
+                    <code className="rounded bg-muted px-1 text-xs">DOGRAH_WEBHOOK_SECRET</code> is set on the API.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="inbound-webhook-url">Inbound webhook URL</Label>
+                    <Input
+                        id="inbound-webhook-url"
+                        type="url"
+                        placeholder="https://your-server.com/inbound-hook"
+                        value={inboundUrl}
+                        onChange={(e) => setInboundUrl(e.target.value)}
+                        autoComplete="off"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="outbound-webhook-url">Outbound lifecycle webhook URL</Label>
+                    <Input
+                        id="outbound-webhook-url"
+                        type="url"
+                        placeholder="https://your-server.com/lifecycle"
+                        value={outboundUrl}
+                        onChange={(e) => setOutboundUrl(e.target.value)}
+                        autoComplete="off"
+                    />
+                </div>
+            </CardContent>
+            <CardFooter className="justify-end border-t pt-6">
+                <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? "Saving..." : "Save Webhooks"}
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Section: Voicemail Detection
 // ---------------------------------------------------------------------------
 
@@ -942,6 +1051,12 @@ function WorkflowSettingsContent({
                                 workflowConfigurations={workflowConfigurations}
                                 workflowName={workflowName || workflow.name}
                                 workflowId={workflowId}
+                                onSave={saveWorkflowConfigurations}
+                            />
+
+                            <WebhooksSection
+                                workflowConfigurations={workflowConfigurations}
+                                workflowName={workflowName || workflow.name}
                                 onSave={saveWorkflowConfigurations}
                             />
 

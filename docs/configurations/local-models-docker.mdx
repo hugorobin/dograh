@@ -1,0 +1,50 @@
+---
+title: "Local models with Docker"
+description: "Use Ollama or LM Studio for the LLM, optional local TTS/STT, and your own voice when the Dograh API runs in Docker."
+---
+
+This page complements [Model Configurations](inference-providers) and the repo root [DEPLOY_GUIDE.md](https://github.com/dograh-hq/dograh/blob/main/DEPLOY_GUIDE.md) for **building `api` and `ui` from source**. It focuses on **Speaches** (OpenAI-compatible) endpoints and **Docker networking** so containers can reach models running on your machine.
+
+## Prerequisites
+
+- Stack running from a **git clone** with `docker-compose.override.yaml` building local `api` / `ui` images (see DEPLOY_GUIDE).
+- Optional: **Ollama** or **LM Studio** listening on your host with an OpenAI-compatible API.
+
+## Why `host.docker.internal` matters
+
+The **LLM base URL** in Model Configurations is resolved by the **API container**. `http://localhost:11434/v1` points at the container itself, not your Mac or Windows host.
+
+| Where the API runs | Base URL for Ollama on the same machine |
+|--------------------|----------------------------------------|
+| Docker Desktop (Mac / Windows) | `http://host.docker.internal:11434/v1` |
+| API on the host (`uvicorn`) | `http://localhost:11434/v1` |
+| Linux Docker | Use the host gateway IP or another route to the host (Docker does not provide `host.docker.internal` by default unless you add `extra_hosts`). |
+
+LM Studio: use the URL shown in the app (often port `1234`), still with `host.docker.internal` instead of `localhost` when the API is in Docker.
+
+## LLM: Ollama or LM Studio (Speaches provider)
+
+Dograh uses the **Speaches** LLM provider for any **OpenAI-compatible** `/v1/chat/completions` server (Ollama, LM Studio, vLLM, etc.).
+
+1. Open **Model Configurations** (self-hosted: `http://localhost:3010/model-configurations`) or an agent’s **Model Overrides** → **LLM**.
+2. Set provider to **speaches** (may appear as **Speaches** in the UI).
+3. Set **model** to the exact id exposed by the server (e.g. Ollama model name).
+4. Set **base URL** to your server, using `host.docker.internal` when the API runs in Docker (see table above).
+5. **API key**: many local servers ignore it; if the UI requires a value, use a placeholder such as `none` if your stack accepts it. Saving requires a **base URL** (validation enforces it for Speaches).
+
+## Voice: your own TTS
+
+TTS is separate from the LLM.
+
+- **ElevenLabs (or similar cloud TTS)** with a **cloned or custom voice**: create the voice in the provider’s console, copy the **voice ID**, and paste it in Dograh’s TTS settings. See [Voice](voice) for manual voice ID entry.
+- **Speaches TTS** (self-hosted): point **base URL** at your OpenAI-compatible TTS server and set **voice** to the id that server documents (e.g. Kokoro-style presets). Use `host.docker.internal` in the URL when the API runs in Docker, same rules as the LLM.
+
+## Optional: local STT (Speaches)
+
+To run speech-to-text on your machine, choose **speaches** under **Transcriber**, set **base URL** to your OpenAI-compatible STT endpoint, and use `host.docker.internal` instead of `localhost` when the API is containerized. **STT and LLM each have their own `base_url`**; they do not need to match.
+
+## Quick checks
+
+- API health: `http://localhost:8000/api/v1/health`
+- If the LLM times out or refuses connection from a call: wrong host in `base_url` (use `host.docker.internal` from Docker).
+- If the database looks empty after switching to the repo: wrong Docker Compose **project name** — align `COMPOSE_PROJECT_NAME` with your previous stack (see DEPLOY_GUIDE).
